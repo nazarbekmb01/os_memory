@@ -1,0 +1,660 @@
+<title>The Memory Puzzle</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column, sticky route bar of 4 stages; interactive "instruments" sit inside the column */
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --ink:#18202E; --muted:#5A6577; --line:#D9DEE7;
+  --accent:#2F55D4; --accent-soft:#E4EAFB;
+  --irq:#C9800C; --irq-soft:#FBF0DC;
+  --ok:#1E8A55; --ok-soft:#E1F3E9; --bad:#C2413A; --bad-soft:#F8E3E1;
+  --jobA:#2F55D4; --jobB:#7A4FD0; --jobC:#13897E; --idle:#C2413A;
+  --f-display:"Archivo","Arial Narrow",Arial,sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",Roboto,Arial,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11161F; --surface:#19202C; --ink:#E7ECF4; --muted:#9AA6B8; --line:#2C3545;
+  --accent:#7D9BFF; --accent-soft:#1F2A47; --irq:#F0B54A; --irq-soft:#3A2D14;
+  --ok:#4CC88A; --ok-soft:#173326; --bad:#F07A72; --bad-soft:#3B1D1B;
+  --jobA:#6F8EFF; --jobB:#A88BF0; --jobC:#3CC2B3; --idle:#F07A72; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161F; --surface:#19202C; --ink:#E7ECF4; --muted:#9AA6B8; --line:#2C3545;
+  --accent:#7D9BFF; --accent-soft:#1F2A47; --irq:#F0B54A; --irq-soft:#3A2D14;
+  --ok:#4CC88A; --ok-soft:#173326; --bad:#F07A72; --bad-soft:#3B1D1B;
+  --jobA:#6F8EFF; --jobB:#A88BF0; --jobC:#3CC2B3; --idle:#F07A72; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:780px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,6vw,3.1rem);font-weight:800;letter-spacing:-.01em}
+h2{font-size:clamp(1.5rem,4vw,2rem);font-weight:800}
+h3{font-size:1.15rem;font-weight:700}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.9em}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.eyebrow{font-family:var(--f-mono);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+header.top{padding-block:40px 20px;display:grid;gap:14px}
+.lede{font-size:1.15rem;color:var(--muted);max-width:62ch}
+.objs{display:grid;gap:8px;margin-top:6px}
+.obj{display:flex;gap:12px;align-items:baseline}
+.obj b{font-family:var(--f-mono);font-size:.85rem;color:var(--accent);white-space:nowrap}
+
+nav.route{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
+  margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-left,0px))}
+.route ol{list-style:none;margin:0 auto;padding:0;max-width:780px;display:flex;gap:8px;overflow-x:auto}
+.route li{flex:1 0 auto}
+.route a{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--ink);font-weight:600;font-size:.92rem;
+  padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);white-space:nowrap}
+.route input{accent-color:var(--ok);width:16px;height:16px;margin:0}
+.route .t{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);font-weight:400}
+
+section.stage{padding-block:48px 8px;display:grid;gap:18px;scroll-margin-top:70px}
+.stage-head{display:grid;gap:6px;border-top:3px solid var(--ink);padding-top:14px}
+.stage-head .eyebrow{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.instrument{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px}
+.note{background:var(--accent-soft);border-radius:8px;padding:12px 14px}
+.task{border-left:4px solid var(--irq);background:var(--irq-soft);padding:12px 14px;border-radius:0 8px 8px 0}
+.task b:first-child{font-family:var(--f-mono);font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--irq);display:block;margin-bottom:2px}
+
+/* speed scale */
+.scale{display:grid;gap:10px}
+.srow{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center}
+.srow .lbl{font-weight:600}
+.srow .lbl small{display:block;font-weight:400;color:var(--muted);font-family:var(--f-mono);font-size:.75rem}
+.bar{height:30px;border-radius:4px;background:var(--accent);display:flex;align-items:center;padding-inline:10px;color:#fff;
+  font-family:var(--f-mono);font-size:.85rem;white-space:nowrap;min-width:fit-content;max-width:100%}
+.bar.k{background:var(--idle)}
+@media (max-width:520px){.srow{grid-template-columns:1fr;gap:4px}}
+
+/* timeline */
+.seg-toggle{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:8px;font-weight:600}
+.btn[aria-pressed="true"],.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.timeline{display:grid;gap:6px}
+.track{position:relative;display:flex;height:46px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--bg)}
+.seg{display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--f-mono);font-size:.8rem;font-weight:600;
+  border-right:1px solid var(--surface);transition:flex-basis .5s ease}
+.seg.idle{background:repeating-linear-gradient(135deg,var(--bad-soft) 0 6px,transparent 6px 12px);color:var(--idle)}
+.seg.A{background:var(--jobA)}.seg.B{background:var(--jobB)}.seg.C{background:var(--jobC)}
+.irqs{position:relative;height:22px}
+.irq{position:absolute;top:0;transform:translateX(-50%);font-family:var(--f-mono);font-size:.7rem;color:var(--irq);white-space:nowrap}
+.irq::before{content:"▲ ";}
+.axis{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:.72rem;color:var(--muted)}
+.stats{display:flex;gap:18px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.stat{display:grid}
+.stat b{font-family:var(--f-display);font-size:1.6rem}
+.stat span{font-size:.85rem;color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+@media (prefers-reduced-motion:reduce){.seg{transition:none}}
+
+/* toolkit */
+.tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:620px){.tools{grid-template-columns:1fr}}
+.tool{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface);display:grid;gap:6px;align-content:start}
+.tool .tag{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tool .life{font-size:.92rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
+
+/* quiz */
+.q{display:grid;gap:8px}
+.q+.q{border-top:1px solid var(--line);padding-top:14px}
+.opts{display:grid;gap:6px}
+.opt{text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:9px 12px;border-radius:8px}
+.opt.right{background:var(--ok-soft);border-color:var(--ok)}
+.opt.wrong{background:var(--bad-soft);border-color:var(--bad)}
+.fb{font-size:.95rem}
+.fb.ok{color:var(--ok)}.fb.no{color:var(--bad)}
+
+/* save ordering */
+.pool,.seq{display:grid;gap:6px}
+.step{text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:9px 12px;border-radius:8px;display:flex;gap:10px;align-items:flex-start}
+.step .n{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);min-width:1.5em}
+.seq .step{background:var(--accent-soft);border-color:transparent;cursor:default}
+.seq .step.right{background:var(--ok-soft)}.seq .step.wrong{background:var(--bad-soft)}
+.who{margin-left:auto;font-family:var(--f-mono);font-size:.72rem;padding:2px 8px;border-radius:999px;background:var(--surface);border:1px solid var(--line);white-space:nowrap}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.empty{color:var(--muted);font-style:italic;font-size:.95rem}
+
+pre.code{margin:0;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px;overflow-x:auto;font-family:var(--f-mono);font-size:.9rem;line-height:1.7}
+.code .hl{background:var(--irq-soft);color:var(--ink);border-radius:3px;padding:0 3px}
+.code .cm{color:var(--muted)}
+
+/* layers */
+.layers{display:grid;gap:4px}
+.layer{display:grid;grid-template-columns:150px 1fr;gap:12px;padding:10px 14px;border-radius:6px;background:var(--bg);border:1px solid var(--line)}
+.layer b{font-family:var(--f-display)}
+.layer.k{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.layer.k span{color:var(--bg)}
+.wall{font-family:var(--f-mono);font-size:.75rem;text-align:center;color:var(--irq);letter-spacing:.08em;padding:2px}
+@media (max-width:520px){.layer{grid-template-columns:1fr;gap:2px}}
+
+table{border-collapse:collapse;width:100%;font-size:.95rem}
+.tbl{overflow-x:auto}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.pts{font-family:var(--f-mono);white-space:nowrap;text-align:right}
+
+.scen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:680px){.scen{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:420px){.scen{grid-template-columns:1fr}}
+.sc{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--surface);display:grid;gap:4px;align-content:start}
+.sc .num{font-family:var(--f-mono);font-size:.75rem;color:var(--muted)}
+.sc b{font-family:var(--f-display)}
+.sc p{font-size:.92rem;color:var(--muted)}
+
+ul.check{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+ul.check li{display:flex;gap:10px;align-items:flex-start}
+ul.check input{margin-top:5px;accent-color:var(--ok);width:17px;height:17px;flex:none}
+
+details{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px 16px}
+summary{cursor:pointer;font-weight:700;font-family:var(--f-display)}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:12px 0 0}
+dt{font-weight:700}dd{margin:0;color:var(--muted)}
+@media (max-width:520px){dl{grid-template-columns:1fr}dd{margin-bottom:6px}}
+footer{margin-top:40px;color:var(--muted);font-size:.9rem}
+/* lesson route + per-stage brief */
+.plan{padding-block:8px 0;display:grid;gap:10px}
+.plan .tbl{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.plan td:first-child{font-family:var(--f-mono);font-size:.85rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+.brief{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.brief>div{padding:12px 14px;display:grid;gap:4px;align-content:start}
+.brief>div+div{border-left:1px solid var(--line)}
+.brief .k{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.brief ul{margin:0;padding-left:18px;font-size:.95rem}
+.brief .done{background:var(--ok-soft)}
+.brief .done .k{color:var(--ok)}
+@media (max-width:640px){.brief{grid-template-columns:1fr}.brief>div+div{border-left:0;border-top:1px solid var(--line)}}
+</style>
+<style>
+/* memory-lesson additions */
+.ram{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:3px}
+.cell{height:46px;border-radius:4px;background:var(--bg);border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;
+  font-family:var(--f-mono);font-size:.68rem;color:#fff;font-weight:600;overflow:hidden}
+.cell.os{background:var(--muted);border:0}
+.cell.m{background:#C9800C;border:0}.cell.c{background:var(--jobA);border:0}.cell.g{background:var(--jobC);border:0}
+.cell.n{background:var(--jobB);border:0}.cell.z{background:var(--bad);border:0}
+.ramidx{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;font-family:var(--f-mono);font-size:.65rem;color:var(--muted);text-align:center}
+@media (max-width:520px){.cell{height:34px;font-size:.55rem}.ramidx{font-size:.5rem}}
+.log{font-family:var(--f-mono);font-size:.88rem;background:var(--bg);border-radius:8px;padding:10px 12px;min-height:2.6em}
+.log.bad{background:var(--bad-soft);color:var(--ink)}.log.good{background:var(--ok-soft);color:var(--ink)}
+.pt{display:grid;grid-template-columns:auto auto 1fr;gap:18px;align-items:start}
+@media (max-width:640px){.pt{grid-template-columns:1fr}}
+.pages,.ptab{display:grid;gap:4px}
+.pg{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 12px;border-radius:6px;font-family:var(--f-mono);font-size:.85rem;text-align:left}
+.pg.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ptab table td,.ptab table th{padding:5px 10px;font-family:var(--f-mono);font-size:.85rem}
+.ptab tr.sel td{background:var(--accent-soft)}
+.cell.hl{outline:3px solid var(--irq);outline-offset:1px}
+.sortq{display:grid;gap:8px}
+.srt{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px}
+@media (max-width:620px){.srt{grid-template-columns:1fr}}
+.srt .ch{display:flex;gap:4px;flex-wrap:wrap}
+.srt .ch button{border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:5px 10px;border-radius:999px;font-size:.85rem}
+.srt .ch button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.srt .ch button.right{background:var(--ok);color:#fff;border-color:var(--ok)}
+.srt .ch button.wrong{background:var(--bad);color:#fff;border-color:var(--bad)}
+.refs{display:flex;gap:4px;flex-wrap:wrap}
+.ref{min-width:30px;padding:4px 6px;text-align:center;border-radius:4px;background:var(--bg);border:1px solid var(--line);font-family:var(--f-mono);font-size:.85rem}
+.ref.now{outline:2px solid var(--accent)}
+.ref.hit{background:var(--ok-soft);border-color:var(--ok)}
+.ref.fault{background:var(--bad-soft);border-color:var(--bad)}
+.frames{display:flex;gap:6px;flex-wrap:wrap}
+.frame{width:56px;height:56px;border-radius:6px;border:2px solid var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--f-display);font-size:1.4rem;background:var(--surface)}
+.frame.new{background:var(--irq-soft)}
+.ctrls{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.ctrls label{font-size:.9rem;color:var(--muted)}
+select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.case{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface);display:grid;gap:6px}
+.case .num{font-family:var(--f-mono);font-size:.75rem;color:var(--muted)}
+.cases{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:760px){.cases{grid-template-columns:1fr}}
+details.ans{background:var(--bg)}
+.field{display:grid;gap:4px}
+.field label{font-weight:600;font-size:.95rem}
+.field input,.field textarea,.field select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%}
+.field textarea{min-height:76px;resize:vertical}
+.fields2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:560px){.fields2{grid-template-columns:1fr}}
+.auto{font-family:var(--f-mono);font-size:.85rem;color:var(--muted)}
+.res td,.res th{text-align:center;font-variant-numeric:tabular-nums}
+.res td:first-child,.res th:first-child{text-align:left}
+pre.sum{margin:0;white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;font-family:var(--f-mono);font-size:.8rem;max-height:320px;overflow:auto}
+a.btn{text-decoration:none;display:inline-block}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">Computer Science · Grade 11 · Unit 16: System Software · Memory management</div>
+  <h1>The Memory Puzzle</h1>
+  <p class="lede">Why does a computer with 50 browser tabs open start to crawl, even though it still works? Today you find out how the OS fits many programs into limited RAM, and what happens when it runs out.</p>
+  <div class="objs">
+    <div class="obj"><b>11.SS.32</b><span>Describe the use of virtual memory, paging and segmentation for memory management.</span></div>
+  </div>
+</header>
+
+<section class="plan" aria-label="Your details">
+  <div class="instrument">
+    <h3>Before you start</h3>
+    <div class="fields2">
+      <div class="field"><label for="st-name">Full name</label><input id="st-name" class="ans" data-label="Name" autocomplete="name"></div>
+      <div class="field"><label for="st-class">Class and pair</label><input id="st-class" class="ans" data-label="Class / pair" placeholder="e.g. 11A, with Aruzhan"></div>
+    </div>
+    <p class="auto">Type your answers in the boxes on this page. At the end, in "Send your work", you send everything in one click.</p>
+  </div>
+</section>
+</div>
+
+<nav class="route" aria-label="Lesson route">
+  <ol>
+    <li><a href="#p1"><input type="checkbox" id="m-done-1" aria-label="Part 1 done"> 1 · Puzzle <span class="t">5–17</span></a></li>
+    <li><a href="#p2"><input type="checkbox" id="m-done-2" aria-label="Part 2 done"> 2 · Pages <span class="t">17–30</span></a></li>
+    <li><a href="#p3"><input type="checkbox" id="m-done-3" aria-label="Part 3 done"> 3 · Virtual memory <span class="t">30–45</span></a></li>
+    <li><a href="#p4"><input type="checkbox" id="m-done-4" aria-label="Part 4 done"> 4 · Doctor <span class="t">45–70</span></a></li>
+  </ol>
+</nav>
+
+<main class="wrap">
+
+<section class="stage" id="start">
+  <div class="stage-head"><div class="eyebrow"><span>Start · last lesson in 3 questions</span><span>no marks</span></div><h2>Warm-up</h2></div>
+  <div class="instrument">
+    <p><b>1.</b> A process is waiting for the disk. What does the OS do with the CPU?<br><b>2.</b> What is an interrupt?<br><b>3.</b> Why does one "Print" button work with any printer?</p>
+    <details class="ans"><summary>Show answers</summary><p>1. Gives the CPU to another ready process (the waiting one is blocked). 2. A signal from a device to the CPU that an event needs attention. 3. A device driver translates the OS's general commands for that printer.</p></details>
+    <div class="task"><b>Today's question</b>Your laptop has 8 GB of RAM. You open 50 tabs that need 12 GB. Why does it still work, and why does it get slow? Write a one-sentence guess.</div>
+    <div class="field"><label for="a-guess">My guess</label><textarea id="a-guess" class="ans" data-label="Start: my guess"></textarea></div>
+  </div>
+</section>
+
+<!-- PART 1 -->
+<section class="stage" id="p1">
+  <div class="stage-head"><div class="eyebrow"><span>Part 1 · Explore</span><span>pairs · slides 3–10</span></div><h2>The puzzle: fitting programs into RAM</h2></div>
+  <div class="brief">
+    <div><span class="k">Use</span><ul><li>The RAM puzzle below</li><li>Slides 3–10</li></ul></div>
+    <div><span class="k">Do</span><ul><li>Play the events with <b>Segments</b></li><li>Reset, play again with <b>Pages</b></li><li>Answer the 2 questions below</li></ul></div>
+    <div class="done"><span class="k">Done when · 17 min</span><ul><li>You can explain why Zoom did not fit with segments</li><li>…and why it fits with pages</li></ul></div>
+  </div>
+  <p>RAM has 16 blocks. The OS kernel always uses 2. Programs arrive and close. Press <b>Next event</b> and watch the memory.</p>
+  <div class="instrument">
+    <div class="seg-toggle" role="group" aria-label="Method">
+      <button class="btn" id="mode-seg" aria-pressed="true">Segments (different sizes)</button>
+      <button class="btn" id="mode-page" aria-pressed="false">Pages (equal size)</button>
+    </div>
+    <div class="ram" id="ram"></div>
+    <div class="ramidx" id="ramidx"></div>
+    <div class="stats"><div class="stat"><b id="f-free">14</b><span>blocks free</span></div><div class="stat"><b id="f-hole">14</b><span>largest gap</span></div></div>
+    <p class="log" id="plog">Press "Next event" to start.</p>
+    <div class="row"><button class="btn primary" id="p-next">Next event</button><button class="btn" id="p-reset">Reset</button></div>
+    <div class="field"><label for="a-p1q1">1. With segments: how many blocks were free when Zoom arrived? Why could it still not load?</label><textarea id="a-p1q1" class="ans" data-label="Part 1 Q1"></textarea></div>
+    <div class="field"><label for="a-p1q2">2. What changed with pages? Why does Zoom fit now?</label><textarea id="a-p1q2" class="ans" data-label="Part 1 Q2"></textarea></div>
+  </div>
+  <div class="tools">
+    <div class="tool"><span class="tag">Older method</span><h3>Segmentation</h3><p>A program is split into <b>segments</b> of <b>different sizes</b>, following its logical parts (code, data, stack). Each segment needs one continuous gap in RAM.</p><p class="life">Problem: <b>fragmentation</b>. Gaps between segments become too small to use.</p></div>
+    <div class="tool"><span class="tag">Modern method</span><h3>Paging</h3><p>A program is split into <b>pages</b> of <b>equal size</b>. RAM is split into <b>frames</b> of the same size. Any page fits in any free frame, so pages of one program can be scattered.</p><p class="life">Like a car park where every space is the same size.</p></div>
+  </div>
+</section>
+
+<!-- PART 2 -->
+<section class="stage" id="p2">
+  <div class="stage-head"><div class="eyebrow"><span>Part 2 · Explore</span><span>pairs · slides 11–13</span></div><h2>Pages, frames and the page table</h2></div>
+  <div class="brief">
+    <div><span class="k">Use</span><ul><li>The page table below</li><li>Slides 11–13</li></ul></div>
+    <div><span class="k">Do</span><ul><li>Click each page of the Game</li><li>Sort the 7 statements</li></ul></div>
+    <div class="done"><span class="k">Done when · 30 min</span><ul><li>You found the page fault</li><li>7 of 7 statements correct</li></ul></div>
+  </div>
+  <p>The Game thinks its memory is one continuous block: page 0, 1, 2, 3 (its <b>logical memory</b>). In reality the pages are scattered. The OS keeps a <b>page table</b> for every process: which frame holds each page.</p>
+  <div class="instrument">
+    <div class="pt">
+      <div class="pages" id="gpages" aria-label="Game logical pages"></div>
+      <div class="ptab"><table><thead><tr><th>Page</th><th>Frame</th></tr></thead><tbody id="ptbody"></tbody></table></div>
+      <div style="min-width:0;display:grid;gap:6px"><div class="ram" id="ram2"></div><div class="ramidx" id="ramidx2"></div></div>
+    </div>
+    <p class="log" id="ptlog">Click a page of the Game.</p>
+  </div>
+
+  <div class="instrument">
+    <h3>Paging, segmentation or both?</h3>
+    <p>Choose for each statement, then press Check.</p>
+    <div class="sortq" id="sortq"></div>
+    <div class="row"><button class="btn primary" id="s-check">Check</button><span id="s-fb" aria-live="polite"></span></div>
+  </div>
+</section>
+
+<!-- PART 3 -->
+<section class="stage" id="p3">
+  <div class="stage-head"><div class="eyebrow"><span>Part 3 · Lab</span><span>pairs · slides 14–15</span></div><h2>Virtual memory and thrashing</h2></div>
+  <div class="brief">
+    <div><span class="k">Use</span><ul><li>The simulator below</li><li>Slides 14–15</li></ul></div>
+    <div><span class="k">Do</span><ul><li>Run all 8 settings</li><li>Check the table below</li><li>Answer the 3 questions</li></ul></div>
+    <div class="done"><span class="k">Done when · 45 min</span><ul><li>Table complete</li><li>You can say when thrashing starts</li></ul></div>
+  </div>
+  <p><b>Virtual memory:</b> when RAM is full, the OS keeps some pages on the <b>disk</b> and swaps them in when needed. Programs can be bigger than RAM. But every time a page is not in RAM there is a <b>page fault</b>: the OS must fetch it from the disk, which is thousands of times slower.</p>
+  <p>When RAM is full, which page should go back to disk? Two rules:</p>
+  <div class="tools">
+    <div class="tool"><span class="tag">Rule 1</span><h3>FIFO · First In, First Out</h3><p>Swap out the page that has been in RAM the longest.</p></div>
+    <div class="tool"><span class="tag">Rule 2</span><h3>LRU · Least Recently Used</h3><p>Swap out the page that has not been used for the longest time.</p></div>
+  </div>
+  <div class="instrument">
+    <h3>Simulator: a program asks for these pages in order</h3>
+    <div class="refs" id="refs"></div>
+    <div class="ctrls">
+      <label for="nf">Frames in RAM</label><select id="nf"><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+      <label for="alg">Rule</label><select id="alg"><option>FIFO</option><option>LRU</option></select>
+    </div>
+    <div class="frames" id="frames"></div>
+    <div class="stats"><div class="stat"><b id="v-req">0/13</b><span>requests</span></div><div class="stat"><b id="v-flt">0</b><span>page faults (disk reads)</span></div></div>
+    <p class="log" id="vlog">Press Step to follow one request, or Run all.</p>
+    <div class="row"><button class="btn" id="v-step">Step</button><button class="btn primary" id="v-run">Run all</button><button class="btn" id="v-reset">Reset</button></div>
+    <div class="tbl"><table class="res" aria-label="My results">
+      <thead><tr><th>Page faults</th><th>2 frames</th><th>3 frames</th><th>4 frames</th><th>5 frames</th></tr></thead>
+      <tbody><tr><td>FIFO</td><td id="r-FIFO-2">–</td><td id="r-FIFO-3">–</td><td id="r-FIFO-4">–</td><td id="r-FIFO-5">–</td></tr>
+      <tr><td>LRU</td><td id="r-LRU-2">–</td><td id="r-LRU-3">–</td><td id="r-LRU-4">–</td><td id="r-LRU-5">–</td></tr></tbody>
+    </table></div>
+    <p class="auto">The table fills in by itself each time you press "Run all".</p>
+    <div class="field"><label for="a-p3q1">1. What happens to page faults when RAM gets smaller? Why?</label><textarea id="a-p3q1" class="ans" data-label="Part 3 Q1"></textarea></div>
+    <div class="field"><label for="a-p3q2">2. At 2 frames, how many of the 13 requests go to the disk? What is this called, and why is the computer slow?</label><textarea id="a-p3q2" class="ans" data-label="Part 3 Q2"></textarea></div>
+    <div class="field"><label for="a-p3q3">3. Which rule is better here, FIFO or LRU? Use your numbers.</label><textarea id="a-p3q3" class="ans" data-label="Part 3 Q3"></textarea></div>
+  </div>
+  <div class="note"><b>Disk thrashing:</b> RAM is so full that the OS spends most of its time swapping pages between RAM and disk. Little useful work is done; the computer seems to freeze and the disk is busy all the time. Fixes: close programs, add more RAM.</div>
+</section>
+
+<!-- PART 4 -->
+<section class="stage" id="p4">
+  <div class="stage-head"><div class="eyebrow"><span>Part 4 · Apply</span><span>pairs · 25 min</span></div><h2>Memory doctor</h2></div>
+  <div class="brief">
+    <div><span class="k">Use</span><ul><li>Parts 1–3</li><li>The key terms below</li></ul></div>
+    <div><span class="k">Do</span><ul><li>Choose 2 of the 3 cases</li><li>For each: diagnosis, explanation, treatment</li><li>Use at least 4 key terms per case</li></ul></div>
+    <div class="done"><span class="k">Done when · 65 min</span><ul><li>2 cases written</li><li>Ready to present one in 1 minute</li></ul></div>
+  </div>
+  <div class="cases">
+    <div class="case"><span class="num">Case 1</span><b>The crawling laptop</b><p>4 GB RAM. 60 Chrome tabs and a game are open. Everything is very slow and the disk light is on all the time.</p></div>
+    <div class="case"><span class="num">Case 2</span><b>The program that won't load</b><p>An old system uses segmentation. It has 6 MB free in total, but a 4 MB program refuses to load.</p></div>
+    <div class="case"><span class="num">Case 3</span><b>Too big to fit</b><p>A photo editor needs 8 GB. The computer has 6 GB of RAM. The editor opens, but switching between images is slow.</p></div>
+  </div>
+  <div class="instrument">
+    <h3>Each diagnosis has three parts</h3>
+    <ul class="check">
+      <li><input type="checkbox" id="dc1"><label for="dc1"><b>Diagnosis:</b> what is happening inside memory (name it)</label></li>
+      <li><input type="checkbox" id="dc2"><label for="dc2"><b>Explanation:</b> how the OS mechanism works here (pages, frames, page table, disk, segments…)</label></li>
+      <li><input type="checkbox" id="dc3"><label for="dc3"><b>Treatment:</b> what the user or the OS can do, and why it helps</label></li>
+    </ul>
+    <p>Key terms: segment · page · frame · page table · fragmentation · virtual memory · page fault · swap · disk thrashing · FIFO · LRU</p>
+  </div>
+  <div class="instrument">
+    <h3>Our diagnoses</h3>
+    <div class="field"><label for="a-c1n">First case</label><select id="a-c1n" class="ans" data-label="Diagnosis A: case"><option value="">Choose a case</option><option>Case 1 · The crawling laptop</option><option>Case 2 · The program that won't load</option><option>Case 3 · Too big to fit</option></select></div>
+    <div class="field"><label for="a-c1">Diagnosis · Explanation · Treatment</label><textarea id="a-c1" class="ans" data-label="Diagnosis A" style="min-height:130px"></textarea></div>
+    <div class="field"><label for="a-c2n">Second case</label><select id="a-c2n" class="ans" data-label="Diagnosis B: case"><option value="">Choose a case</option><option>Case 1 · The crawling laptop</option><option>Case 2 · The program that won't load</option><option>Case 3 · Too big to fit</option></select></div>
+    <div class="field"><label for="a-c2">Diagnosis · Explanation · Treatment</label><textarea id="a-c2" class="ans" data-label="Diagnosis B" style="min-height:130px"></textarea></div>
+  </div>
+</section>
+
+<!-- CHECK -->
+<section class="stage" id="check">
+  <div class="stage-head"><div class="eyebrow"><span>Check yourself</span><span>no marks · instant feedback</span></div><h2>Self-check</h2></div>
+  <div class="instrument">
+    <div class="q" data-a="1" data-ok="Correct: the free memory is split into gaps that are each too small (fragmentation)." data-no="Not quite. There is enough free memory in total, but it is in small separate gaps: fragmentation.">
+      <p><b>1.</b> 6 MB is free, but a 4 MB segment can't be loaded. Why?</p>
+      <div class="opts"><button class="opt">The disk is full</button><button class="opt">Free memory is split into gaps that are each too small</button><button class="opt">The page table is missing</button></div><p class="fb" aria-live="polite"></p>
+    </div>
+    <div class="q" data-a="0" data-ok="Correct: the page table maps each page to its frame (or shows it is on disk)." data-no="Not quite. The page table records where each page of a process really is: which frame, or on disk.">
+      <p><b>2.</b> What does a page table store?</p>
+      <div class="opts"><button class="opt">Which frame each page of the process is in</button><button class="opt">The size of each segment on the disk</button><button class="opt">The list of processes waiting for the CPU</button></div><p class="fb" aria-live="polite"></p>
+    </div>
+    <div class="q" data-a="2" data-ok="Correct: virtual memory uses disk space as an extension of RAM." data-no="Not quite. Virtual memory uses part of the disk as an extension of RAM.">
+      <p><b>3.</b> Virtual memory lets a program bigger than RAM run because…</p>
+      <div class="opts"><button class="opt">the CPU compresses the program</button><button class="opt">the program is split into segments of different sizes</button><button class="opt">pages not needed right now are kept on the disk</button></div><p class="fb" aria-live="polite"></p>
+    </div>
+    <div class="q" data-a="0" data-ok="Correct: so much swapping that little useful work is done." data-no="Not quite. Thrashing = pages swapped between RAM and disk so often that little useful work is done.">
+      <p><b>4.</b> Disk thrashing is when…</p>
+      <div class="opts"><button class="opt">pages are swapped between RAM and disk so often that little useful work is done</button><button class="opt">the disk is physically damaged</button><button class="opt">two programs use the same frame</button></div><p class="fb" aria-live="polite"></p>
+    </div>
+    <div class="q" data-a="1" data-ok="Correct: LRU swaps out the page unused for the longest time." data-no="Not quite. FIFO = oldest in RAM. LRU = not used for the longest time.">
+      <p><b>5.</b> Which page does LRU swap out?</p>
+      <div class="opts"><button class="opt">The page that came into RAM first</button><button class="opt">The page that has not been used for the longest time</button><button class="opt">The biggest page</button></div><p class="fb" aria-live="polite"></p>
+    </div>
+  </div>
+  <div class="instrument">
+    <h3>Wrap-up</h3>
+    <p>Read your guess from the start again. Now answer properly in one or two sentences.</p>
+    <div class="field"><label for="a-final">Why do 50 tabs still work, and why does the computer get slow?</label><textarea id="a-final" class="ans" data-label="Wrap-up: my answer now"></textarea></div>
+  </div>
+  <div class="note"><b>Homework:</b> Explain how virtual memory allows a program that is larger than main memory to run, and describe one problem it can cause. [6]</div>
+</section>
+
+<section class="stage" id="send">
+  <div class="stage-head"><div class="eyebrow"><span>Finish</span><span>1 minute</span></div><h2>Send your work</h2></div>
+  <div class="instrument">
+    <p>Everything you did on this page is collected below: your answers, the simulator table, the sorting score and the self-check score.</p>
+    <p class="log" id="sendstate"></p>
+    <div class="row">
+      <a class="btn primary" id="sendlink" href="#" target="_blank" rel="noopener" hidden>Send my work</a>
+      <button class="btn" id="copybtn" type="button">Copy my answers</button>
+      <span id="copyfb" aria-live="polite"></span>
+    </div>
+    <details><summary>Preview what will be sent</summary><pre class="sum" id="sum"></pre></details>
+  </div>
+</section>
+
+<section class="stage" id="glossary">
+  <details>
+    <summary>Glossary: key terms</summary>
+    <dl>
+      <dt>Segmentation</dt><dd>A program is split into segments of different sizes (code, data, stack).</dd>
+      <dt>Fragmentation</dt><dd>Free memory is split into small gaps that are too small to use.</dd>
+      <dt>Paging</dt><dd>A program is split into pages of equal size that fit into frames.</dd>
+      <dt>Frame</dt><dd>A fixed-size block of RAM; one page fits in one frame.</dd>
+      <dt>Logical memory</dt><dd>The continuous memory a program thinks it has, with addresses from 0.</dd>
+      <dt>Page table</dt><dd>The OS's map from each page of a process to its frame (or the disk).</dd>
+      <dt>Virtual memory</dt><dd>Using disk space as an extension of RAM.</dd>
+      <dt>Page fault</dt><dd>A page is needed but is not in RAM, so it must be read from the disk.</dd>
+      <dt>Disk thrashing</dt><dd>So much swapping between RAM and disk that little useful work is done.</dd>
+      <dt>FIFO / LRU</dt><dd>Rules for which page to swap out: oldest in RAM / least recently used.</dd>
+    </dl>
+  </details>
+</section>
+
+<footer>Unit 16 · Memory management · Slides 3–15 of the unit presentation cover the same ideas.</footer>
+</main>
+
+<script>
+(function(){
+  /* Google Form that receives the work. Filled in after the teacher runs the form script. */
+  var FORM={url:'https://docs.google.com/forms/d/e/1FAIpQLSdu07G9YW6y2cvawL-6F_vumXMCwBPfzvIZuORIePT6BE-FlQ/viewform',name:'entry.218017970',cls:'entry.2056922670',work:'entry.1582628651'};
+  var rec={sort:'not checked yet',fault:'not found yet',sim:{},quiz:{}};
+  function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function save(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  document.querySelectorAll('input[type=checkbox][id]').forEach(function(cb){
+    cb.checked = load('mem-'+cb.id)==='1';
+    cb.addEventListener('change',function(){save('mem-'+cb.id,cb.checked?'1':'0')});
+    cb.addEventListener('click',function(e){e.stopPropagation()});
+  });
+  try{var r=JSON.parse(load('mem-rec')||'null');if(r)rec=r}catch(e){}
+  function saveRec(){save('mem-rec',JSON.stringify(rec));build()}
+  document.querySelectorAll('.ans').forEach(function(el){
+    var v=load('mem-'+el.id); if(v!==null) el.value=v;
+    el.addEventListener('input',function(){save('mem-'+el.id,el.value);build()});
+    el.addEventListener('change',function(){save('mem-'+el.id,el.value);build()});
+  });
+  function idx(el){var h='';for(var i=0;i<16;i++)h+='<span>'+i+'</span>';el.innerHTML=h}
+  idx(document.getElementById('ramidx')); idx(document.getElementById('ramidx2'));
+
+  /* ---------- Part 1 puzzle ---------- */
+  var P={Music:{s:3,c:'m',k:'Mu'},Chrome:{s:5,c:'c',k:'Ch'},Game:{s:4,c:'g',k:'Ga'},Notes:{s:2,c:'n',k:'No'},Zoom:{s:4,c:'z',k:'Zo'}};
+  var events=[['load','Music'],['load','Chrome'],['load','Game'],['load','Notes'],['close','Music'],['close','Notes'],['load','Zoom']];
+  var mode='seg', step=0, mem;
+  function resetMem(){mem=new Array(16).fill(null);mem[0]=mem[1]={n:'OS',c:'os',t:'OS'};step=0}
+  function freeCount(){return mem.filter(function(x){return !x}).length}
+  function largestHole(){var b=0,c=0;mem.forEach(function(x){if(!x){c++;b=Math.max(b,c)}else c=0});return b}
+  function drawRam(){
+    var el=document.getElementById('ram');el.innerHTML='';
+    mem.forEach(function(x){var d=document.createElement('div');d.className='cell'+(x?' '+x.c:'');d.textContent=x?x.t:'';el.appendChild(d)});
+    document.getElementById('f-free').textContent=freeCount();
+    document.getElementById('f-hole').textContent=largestHole();
+  }
+  function setLog(t,cls){var l=document.getElementById('plog');l.textContent=t;l.className='log'+(cls?' '+cls:'')}
+  function doEvent(){
+    if(step>=events.length){setLog('All events done. Press Reset, switch the method, and play again.');return}
+    var e=events[step++], name=e[1], p=P[name];
+    if(e[0]==='close'){
+      for(var i=0;i<16;i++) if(mem[i]&&mem[i].n===name) mem[i]=null;
+      setLog(name+' closes. Its '+p.s+' blocks are free again.');
+    } else if(mode==='seg'){
+      var start=-1,c=0;
+      for(var j=0;j<16;j++){if(!mem[j]){c++;if(c===p.s){start=j-p.s+1;break}}else c=0}
+      if(start<0){setLog(name+' needs '+p.s+' blocks in one piece. '+freeCount()+' blocks are free, but the largest gap is only '+largestHole()+'. It cannot load: this is fragmentation.','bad')}
+      else{for(var k=0;k<p.s;k++)mem[start+k]={n:name,c:p.c,t:p.k};setLog(name+' loads as one segment of '+p.s+' blocks.')}
+    } else {
+      var free=[];mem.forEach(function(x,i){if(!x)free.push(i)});
+      if(free.length<p.s){setLog(name+' needs '+p.s+' frames; only '+free.length+' are free.','bad')}
+      else{for(var q=0;q<p.s;q++)mem[free[q]]={n:name,c:p.c,t:p.k+q};
+        setLog(name+' is split into '+p.s+' pages. They go into free frames '+free.slice(0,p.s).join(', ')+', even though those frames are not next to each other.',name==='Zoom'?'good':'')}
+    }
+    drawRam();
+  }
+  function setMode(m){mode=m;document.getElementById('mode-seg').setAttribute('aria-pressed',m==='seg');document.getElementById('mode-page').setAttribute('aria-pressed',m==='page');resetMem();drawRam();setLog(m==='seg'?'Segments: each program needs one continuous gap. Press "Next event".':'Pages: each program is cut into 1-block pages. Press "Next event".')}
+  document.getElementById('p-next').onclick=doEvent;
+  document.getElementById('p-reset').onclick=function(){setMode(mode)};
+  document.getElementById('mode-seg').onclick=function(){setMode('seg')};
+  document.getElementById('mode-page').onclick=function(){setMode('page')};
+  setMode('seg');
+
+  /* ---------- Part 2 page table ---------- */
+  var table=[6,9,'disk',13];
+  var other={2:'c',3:'c',4:'c',5:'m',8:'n',10:'c',11:'m',14:'n'};
+  var pages=document.getElementById('gpages'), tb=document.getElementById('ptbody'), ram2=document.getElementById('ram2');
+  function drawRam2(sel){
+    ram2.innerHTML='';
+    for(var i=0;i<16;i++){var d=document.createElement('div');var gi=table.indexOf(i);
+      if(i<2){d.className='cell os';d.textContent='OS'}
+      else if(gi>-1){d.className='cell g'+(sel===gi?' hl':'');d.textContent='Ga'+gi}
+      else if(other[i]){d.className='cell '+other[i];d.textContent=''}
+      else d.className='cell';
+      ram2.appendChild(d)}
+  }
+  function pick(p){
+    [].forEach.call(pages.children,function(b,i){b.classList.toggle('sel',i===p)});
+    [].forEach.call(tb.children,function(r,i){r.classList.toggle('sel',i===p)});
+    drawRam2(p);
+    var l=document.getElementById('ptlog');
+    if(table[p]==='disk'){rec.fault='found (page 2 is on disk)';saveRec();l.className='log bad';l.textContent='Page 2 is not in RAM: the page table says "disk". This is a page fault. The OS reads the page from the disk into a free frame (and, if RAM is full, first swaps another page out).'}
+    else{l.className='log';l.textContent='Logical page '+p+' → page table → physical frame '+table[p]+'. The Game never knows the real frame number.'}
+  }
+  for(var p=0;p<4;p++){(function(p){
+    var b=document.createElement('button');b.className='pg';b.textContent='Game page '+p;b.onclick=function(){pick(p)};pages.appendChild(b);
+    var r=document.createElement('tr');r.innerHTML='<td>'+p+'</td><td>'+(table[p]==='disk'?'on disk':table[p])+'</td>';tb.appendChild(r);
+  })(p)}
+  drawRam2(-1);
+
+  /* ---------- Part 2 sorting ---------- */
+  var S=[['All the pieces are the same size.','Paging'],['The pieces follow the logical parts of the program (code, data, stack).','Segmentation'],
+    ['Leaves gaps between pieces in RAM that can be too small to use.','Segmentation'],['The last piece of a program may be only partly full.','Paging'],
+    ['Uses a table to map the program’s addresses to real addresses in RAM.','Both'],['A process can be stored in pieces that are not next to each other.','Both'],
+    ['RAM is divided into frames.','Paging']];
+  var sq=document.getElementById('sortq'), choice=[];
+  S.forEach(function(s,i){
+    var row=document.createElement('div');row.className='srt';
+    row.innerHTML='<span>'+(i+1)+'. </span><div class="ch"></div>';row.firstChild.textContent=(i+1)+'. '+s[0];
+    ['Paging','Segmentation','Both'].forEach(function(o){var b=document.createElement('button');b.type='button';b.textContent=o;
+      b.onclick=function(){choice[i]=o;[].forEach.call(row.querySelectorAll('button'),function(x){x.className=x===b?'on':''});document.getElementById('s-fb').textContent=''};
+      row.lastChild.appendChild(b)});
+    sq.appendChild(row)});
+  document.getElementById('s-check').onclick=function(){
+    var ok=0;[].forEach.call(sq.children,function(row,i){[].forEach.call(row.querySelectorAll('button'),function(b){
+      b.className='';if(b.textContent===choice[i])b.className=choice[i]===S[i][1]?'right':'wrong'})
+      if(choice[i]===S[i][1])ok++});
+    rec.sort=ok+' of 7 correct';saveRec();
+    document.getElementById('s-fb').textContent=ok+' of 7 correct.'+(ok<7?' Fix the red ones and check again.':' Well done!');
+  };
+
+  /* ---------- Part 3 simulator ---------- */
+  var refs=[7,0,1,2,0,3,0,4,2,3,0,3,2], t, frames, faults, order, last;
+  var rEl=document.getElementById('refs');
+  function vreset(){
+    t=0;frames=[];faults=0;order=[];last={};
+    rEl.innerHTML='';refs.forEach(function(r){var s=document.createElement('span');s.className='ref';s.textContent=r;rEl.appendChild(s)});
+    drawFrames(-1);upd();document.getElementById('vlog').textContent='Press Step to follow one request, or Run all.';document.getElementById('vlog').className='log';
+  }
+  function drawFrames(newIdx){
+    var n=+document.getElementById('nf').value, el=document.getElementById('frames');el.innerHTML='';
+    for(var i=0;i<n;i++){var d=document.createElement('div');d.className='frame'+(i===newIdx?' new':'');d.textContent=frames[i]===undefined?'':frames[i];el.appendChild(d)}
+  }
+  function upd(){document.getElementById('v-req').textContent=t+'/'+refs.length;document.getElementById('v-flt').textContent=faults}
+  function vstep(quiet){
+    if(t>=refs.length) return false;
+    var n=+document.getElementById('nf').value, alg=document.getElementById('alg').value, p=refs[t], cell=rEl.children[t], msg, ni=-1;
+    [].forEach.call(rEl.children,function(c){c.classList.remove('now')});cell.classList.add('now');
+    var at=frames.indexOf(p);
+    if(at>-1){cell.classList.add('hit');msg='Page '+p+' is already in RAM: no disk access.'}
+    else{
+      faults++;cell.classList.add('fault');
+      if(frames.length<n){frames.push(p);ni=frames.length-1;order.push(p);msg='Page fault: page '+p+' read from disk into a free frame.'}
+      else{
+        var victim = alg==='FIFO' ? order[0] : frames.slice().sort(function(a,b){return last[a]-last[b]})[0];
+        ni=frames.indexOf(victim);frames[ni]=p;order.splice(order.indexOf(victim),1);order.push(p);
+        msg='Page fault: RAM is full. '+alg+' swaps out page '+victim+' and reads page '+p+' from disk.';
+      }
+    }
+    last[p]=t;t++;
+    if(!quiet){drawFrames(ni);upd();var l=document.getElementById('vlog');l.className='log'+(at>-1?' good':' bad');l.textContent=msg}
+    return true;
+  }
+  document.getElementById('v-step').onclick=function(){if(!vstep(false)){document.getElementById('vlog').textContent='Done: '+faults+' page faults out of '+refs.length+' requests.'}};
+  document.getElementById('v-run').onclick=function(){while(vstep(true));drawFrames(-1);upd();
+    var key=document.getElementById('alg').value+'-'+document.getElementById('nf').value;rec.sim[key]=faults;saveRec();showSim();var l=document.getElementById('vlog');l.className='log';
+    l.textContent='Done: '+faults+' page faults out of '+refs.length+' requests with '+document.getElementById('nf').value+' frames and '+document.getElementById('alg').value+'. Write it in your table.'};
+  document.getElementById('v-reset').onclick=vreset;
+  document.getElementById('nf').onchange=vreset;document.getElementById('alg').onchange=vreset;
+  function showSim(){for(var k in rec.sim){var c=document.getElementById('r-'+k);if(c)c.textContent=rec.sim[k]}}
+  showSim();
+  vreset();
+
+  /* ---------- quiz ---------- */
+  document.querySelectorAll('.q').forEach(function(q,qi){
+    var a=+q.dataset.a, fb=q.querySelector('.fb'), opts=q.querySelectorAll('.opt');
+    opts.forEach(function(o,i){o.addEventListener('click',function(){
+      opts.forEach(function(x){x.classList.remove('right','wrong')});
+      if(!(('q'+(qi+1)) in rec.quiz)){rec.quiz['q'+(qi+1)]=(i===a);saveRec()}
+      if(i===a){o.classList.add('right');fb.className='fb ok';fb.textContent=q.dataset.ok}
+      else{o.classList.add('wrong');fb.className='fb no';fb.textContent=q.dataset.no}
+    })});
+  });
+  /* ---------- summary and sending ---------- */
+  function val(id){var e=document.getElementById(id);return e&&e.value.trim()?e.value.trim():'—'}
+  function build(){
+    var L=[];
+    L.push('START guess: '+val('a-guess'));
+    L.push('','PART 1 · Puzzle','Q1: '+val('a-p1q1'),'Q2: '+val('a-p1q2'));
+    L.push('','PART 2 · Pages','Page fault: '+rec.fault,'Sorting: '+rec.sort);
+    var sim=['FIFO','LRU'].map(function(a){return a+': '+[2,3,4,5].map(function(n){var v=rec.sim[a+'-'+n];return n+'f='+(v===undefined?'–':v)}).join(' ')});
+    L.push('','PART 3 · Virtual memory lab');L=L.concat(sim);
+    L.push('Q1: '+val('a-p3q1'),'Q2: '+val('a-p3q2'),'Q3: '+val('a-p3q3'));
+    L.push('','PART 4 · Memory doctor','A) '+val('a-c1n')+': '+val('a-c1'),'B) '+val('a-c2n')+': '+val('a-c2'));
+    var qk=Object.keys(rec.quiz), qr=qk.filter(function(k){return rec.quiz[k]}).length;
+    L.push('','SELF-CHECK (first try): '+qr+' correct, '+qk.length+' of 5 answered');
+    L.push('','WRAP-UP: '+val('a-final'));
+    var work=L.join('\n');
+    document.getElementById('sum').textContent='Name: '+val('st-name')+'\nClass / pair: '+val('st-class')+'\n\n'+work;
+    var st=document.getElementById('sendstate'), a=document.getElementById('sendlink');
+    if(FORM.url){
+      a.hidden=false;
+      a.href=FORM.url+'?usp=pp_url&'+FORM.name+'='+encodeURIComponent(val('st-name'))+'&'+FORM.cls+'='+encodeURIComponent(val('st-class'))+'&'+FORM.work+'='+encodeURIComponent(work);
+      st.className='log';st.textContent=val('st-name')==='—'?'Write your name at the top first.':'Press "Send my work". A form opens with everything already filled in. Press Submit there.';
+    } else {
+      a.hidden=true;st.className='log';st.textContent='Press "Copy my answers", then paste them where you hand in your work.';
+    }
+  }
+  document.getElementById('copybtn').onclick=function(){
+    var t=document.getElementById('sum').textContent, fb=document.getElementById('copyfb');
+    function sel(){var r=document.createRange();r.selectNodeContents(document.getElementById('sum'));var s=window.getSelection();s.removeAllRanges();s.addRange(r);document.getElementById('sum').parentNode.open=true;fb.textContent='Selected: press Ctrl+C to copy.'}
+    try{navigator.clipboard.writeText(t).then(function(){fb.textContent='Copied.'},sel)}catch(e){sel()}
+  };
+  build();
+})();
+</script>
